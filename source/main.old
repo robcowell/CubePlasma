@@ -1,0 +1,62 @@
+#include <grrlib.h>
+#include <stdlib.h>
+#include <math.h>
+#include <ogcsys.h>
+
+#define SCREEN_WIDTH 640
+#define SCREEN_HEIGHT 480
+#define PLASMA_WIDTH 160
+#define PLASMA_HEIGHT 120
+
+void init_video() {
+    GRRLIB_Init();
+}
+
+u32 generate_color(u8 r, u8 g, u8 b) {
+    return (r << 16) | (g << 8) | b | (0xFF << 24);
+}
+
+void set_pixel_to_texture(int x, int y, GRRLIB_texImg *texture, u32 color) {
+    u32 *tex_data = (u32 *)texture->data;
+    tex_data[y * texture->w + x] = color;
+}
+
+void draw_plasma_effect(GRRLIB_texImg *plasma_texture, float time) {
+    for (int y = 0; y < PLASMA_HEIGHT; y++) {
+        for (int x = 0; x < PLASMA_WIDTH; x++) {
+            float x_distort = sinf((y + time * 30) * 0.1) * 8;
+            float y_distort = sinf((x + time * 30) * 0.1) * 8;
+            
+            float v1 = sinf(((x + x_distort) + time * 50) * 0.025) + sinf(((y + y_distort) - time * 50) * 0.025);
+            float v2 = sinf(((x - x_distort) - time * 50) * 0.025) + sinf(((y - y_distort) + time * 50) * 0.025);
+            float v3 = sinf((x + y + time * 50) * 0.025);
+
+            u8 r = (u8)((sinf(v1 + time) * 0.5 + 0.5) * 255);
+            u8 g = (u8)((sinf(v2 + time) * 0.5 + 0.5) * 255);
+            u8 b = (u8)((sinf(v3 + time) * 0.5 + 0.5) * 255);
+
+            u32 color = generate_color(r, g, b);
+            set_pixel_to_texture(x, y, plasma_texture, color);
+        }
+    }
+}
+
+
+int main(int argc, char **argv) {
+    init_video();
+    float time = 0.0;
+    GRRLIB_FillScreen(0x000000FF);
+    GRRLIB_texImg *plasma_texture = GRRLIB_CreateEmptyTexture(PLASMA_WIDTH, PLASMA_HEIGHT);
+
+    while (1) {
+        GRRLIB_FillScreen(0x000000FF);
+        draw_plasma_effect(plasma_texture, time);
+        GRRLIB_DrawImg(0, 0, plasma_texture, 0, SCREEN_WIDTH / (float)PLASMA_WIDTH, SCREEN_HEIGHT / (float)PLASMA_HEIGHT, 0xFFFFFFFF);
+        GRRLIB_Render();
+        time += 0.1;
+    }
+
+    GRRLIB_FreeTexture(plasma_texture);
+    GRRLIB_Exit();
+    return 0;
+}
