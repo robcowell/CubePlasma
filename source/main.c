@@ -32,6 +32,19 @@ float sineWave(float x, float amplitude, float frequency) {
   return amplitude * sin(2.0f * PI * frequency * x);
 }
 
+float generatePlasma(float x, float y) {
+    float noise = 0.0f;
+
+    for (int oct = 0; oct < 4; oct++) {
+        float freq = pow(2.0f, oct);
+        float amp = pow(0.5f, oct);
+
+        noise += amp * sin(freq * x + y);
+    }
+
+    return noise;
+}
+
 void HSBtoRGB(float hue, float saturation, float brightness, int* red, int* green, int* blue) {
   if(saturation == 0) {
     *red = *green = *blue = (int)(brightness * 255 + 0.5);
@@ -77,6 +90,10 @@ void HSBtoRGB(float hue, float saturation, float brightness, int* red, int* gree
   }
 }
 
+int toColor(int red, int green, int blue) {
+    return (red << 16) | (green << 8) | blue;
+}
+
 int main(int argc, char **argv) {
 //Declare and initialise all the variables
 int offset1, offset2, offset3, offset4;
@@ -93,6 +110,14 @@ int offset1, offset2, offset3, offset4;
     float frequency = 0.5f; // set the frequency of the wave
     float minY = -amplitude; // set the minimum y value
     float maxY = amplitude; // set the maximum y value
+
+    int width = 640;
+    int height = 480;
+    float zoom = 0.02f;
+    float xOffset = 0.0f;
+    float yOffset = 0.0f;
+  
+    int pixels[width * height];
 
     //Define the colors for the color ramp
     u32 color1 = 0xff0000ff; // Blue
@@ -164,7 +189,7 @@ int offset1, offset2, offset3, offset4;
             float y4 = (float)origin4 + (float)amp4 * sin(siny4);
 
             // Call the sineWave function with the current x position to get the wave value.
-            float y = sineWave(x, amplitude, frequency);
+            int y = (int)sineWave(x, amplitude, frequency);
 /*
             // Calculate the color based on the y positions
             u32 color = lerpColor(lerpColor(color1, color2, (y1 + y2)/200),
@@ -176,7 +201,10 @@ int offset1, offset2, offset3, offset4;
             float endHue = 360.0f;
 
             // Calculate the hue based on the y position
-            float hue = map(y, minY, maxY, startHue, endHue);
+            //float hue = map(y, minY, maxY, startHue, endHue);
+            float value = generatePlasma(x * zoom + xOffset, y * zoom + yOffset);
+            float hue = value / 6.0f; // Map value to hue range of 0.0 - 1.0
+
 
             // Convert the hue to an RGB color
             float saturation = 1.0f;
@@ -186,24 +214,28 @@ int offset1, offset2, offset3, offset4;
 
             // Call HSBtoRGB with hue, saturation, and brightness
             HSBtoRGB(hue, saturation, brightness, &red, &green, &blue);
+            pixels[y * width + x] = toColor(red, green, blue);
+            //GRRLIB_SetPixelToFB(x, y, pixels[x + y*width]);
 
 
+
+            
             GX_Begin(GX_LINES, GX_VTXFMT0, 2);
                 GX_Position3f32(x, 0, 0);
                 GX_Color1u32(0x000000FF);
                 GX_Position3f32(x, (sin(DegToRad(siny1))*amp1+origin1)+(sin(DegToRad(siny2))*amp2+origin2)+(sin(DegToRad(siny3))*amp3+origin3)+(sin(DegToRad(siny4))*amp4+origin4)+240,  0);
-                //GX_Color1u32(color);
-                GX_Color4u8(red, green, blue, 1.0f);
+                GX_Color1u32(pixels[x + y]);
+                //GX_Color4u8(red, green, blue, 1.0f);
 
             GX_End();
             GX_Begin(GX_LINES, GX_VTXFMT0, 2);
                 GX_Position3f32(x, (sin(DegToRad(siny1))*amp1+origin1)+(sin(DegToRad(siny2))*amp2+origin2)+(sin(DegToRad(siny3))*amp3+origin3)+(sin(DegToRad(siny4))*amp4+origin4)+240,  0);
-                //GX_Color1u32(color);
-                GX_Color4u8(red, green, blue, 1.0f);
+                GX_Color1u32(pixels[x + y]);
+                //GX_Color4u8(red, green, blue, 1.0f);
                 GX_Position3f32(x, 480, 0);
                 GX_Color1u32(0x000000FF);
             GX_End();
-
+        
 
         }
         siny1=old1+(adc1*pas1);
@@ -211,10 +243,13 @@ int offset1, offset2, offset3, offset4;
         siny3=old3+(adc3*pas3);
         siny4=old4+(adc4*pas4);
 
+        
+
         GRRLIB_Render();  // Render the frame buffer to the TV
     }
 
     GRRLIB_Exit(); // Be a good boy, clear the memory allocated by GRRLIB
+    free(pixels);
 
     exit(0);  // Use exit() to exit a program, do not use 'return' from main()
 }
